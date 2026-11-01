@@ -42,3 +42,14 @@ def get_conversations(limit=10):
     conn.close()
 
     return rows
+
+def clear_conversations():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "DELETE FROM conversations"
+    )
+
+    conn.commit()
+    conn.close()
