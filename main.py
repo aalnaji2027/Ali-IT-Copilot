@@ -1,5 +1,10 @@
 import streamlit as st
 
+from src.memory.conversation import (
+    save_conversation,
+    get_conversations
+)
+
 st.set_page_config(
     page_title="Ali IT Copilot",
     page_icon="🤖",
@@ -8,12 +13,27 @@ st.set_page_config(
 
 st.title("🤖 Ali IT Copilot")
 
-st.success("Phase 1 - Core AI Engine")
+user_message = st.text_input(
+    "Ask me something:"
+)
 
-st.write("""
-Welcome to Ali IT Copilot.
+if st.button("Send"):
 
-Project Status:
-- Phase 1 Active
-- Application Skeleton Running
-""")
+    response = f"Received: {user_message}"
+
+    save_conversation(
+        user_message,
+        response
+    )
+
+    st.success(response)
+
+st.subheader("Conversation History")
+
+history = get_conversations()
+
+for item in history:
+    st.write(f"**{item[0]}**")
+    st.write(f"User: {item[1]}")
+    st.write(f"Assistant: {item[2]}")
+    st.divider()
