@@ -5,11 +5,7 @@ from src.memory.conversation import (
     get_conversations
 )
 
-st.set_page_config(
-    page_title="Ali IT Copilot",
-    page_icon="🤖",
-    layout="wide"
-)
+from src.services.logger import logger
 
 st.title("🤖 Ali IT Copilot")
 
@@ -19,11 +15,21 @@ user_message = st.text_input(
 
 if st.button("Send"):
 
+    logger.info(
+        f"User message: {user_message}"
+    )
+
     response = f"Received: {user_message}"
 
     save_conversation(
         user_message,
         response
+    )
+
+    st.success(response)
+
+    logger.info(
+        f"Assistant response: {response}"
     )
 
     st.success(response)
