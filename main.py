@@ -6,6 +6,11 @@ from src.memory.conversation import (
     clear_conversations
 )
 
+from src.memory.notes import (
+    save_note,
+    get_notes
+)
+
 from src.services.logger import logger
 
 st.set_page_config(
@@ -16,63 +21,140 @@ st.set_page_config(
 
 with st.sidebar:
     st.header("🤖 Ali IT Copilot")
-    st.write("Phase 1 MVP")
+
+    page = st.radio(
+        "Navigation",
+        [
+            "Conversations",
+            "Notes"
+        ]
+    )
+
+    st.write("---")
 
     st.success("✅ Database Connected")
     st.success("✅ Logging Active")
     st.info("⏳ AI Not Connected")
 
-st.title("🤖 Ali IT Copilot")
 
-history = get_conversations()
+# =========================
+# Conversations Page
+# =========================
 
-col1, col2 = st.columns(2)
+if page == "Conversations":
 
-with col1:
-    st.metric(
-        "Total Conversations",
-        len(history)
+    st.title("🤖 Ali IT Copilot")
+
+    history = get_conversations()
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.metric(
+            "Total Conversations",
+            len(history)
+        )
+
+    with col2:
+        st.metric(
+            "Database Status",
+            "Online"
+        )
+
+    if st.button("🗑 Clear History"):
+        clear_conversations()
+        st.rerun()
+
+    user_message = st.text_input(
+        "Ask me something:",
+        key="conversation_input"
     )
 
-with col2:
-    st.metric(
-        "Database Status",
-        "Online"
+    if st.button("Send"):
+
+        logger.info(
+            f"User message: {user_message}"
+        )
+
+        response = f"Received: {user_message}"
+
+        save_conversation(
+            user_message,
+            response
+        )
+
+        st.success(response)
+
+        logger.info(
+            f"Assistant response: {response}"
+        )
+
+    st.subheader("Conversation History")
+
+    history = get_conversations()
+
+    for item in history:
+
+        st.write(
+            f"**{item[0]}**"
+        )
+
+        st.write(
+            f"User: {item[1]}"
+        )
+
+        st.write(
+            f"Assistant: {item[2]}"
+        )
+
+        st.divider()
+
+
+# =========================
+# Notes Page
+# =========================
+
+if page == "Notes":
+
+    st.title("📝 Notes")
+
+    note_title = st.text_input(
+        "Title",
+        key="note_title"
     )
 
-if st.button("🗑 Clear History"):
-    clear_conversations()
-    st.rerun()
-
-user_message = st.text_input(
-    "Ask me something:"
-)
-
-if st.button("Send"):
-
-    logger.info(
-        f"User message: {user_message}"
+    note_content = st.text_area(
+        "Content",
+        key="note_content"
     )
 
-    response = f"Received: {user_message}"
+    if st.button("Save Note"):
 
-    save_conversation(
-        user_message,
-        response
-    )
+        save_note(
+            note_title,
+            note_content
+        )
 
-    st.success(response)
+        st.success(
+            "Note saved successfully"
+        )
 
-    logger.info(
-        f"Assistant response: {response}"
-    )
+    st.subheader("Saved Notes")
 
-st.subheader("Conversation History")
+    notes = get_notes()
 
-history = get_conversations()
+    for note in notes:
 
-for item in history:
-    st.write(f"**{item[0]}**")
-    st.write(f"User: {item[1]}")
-    st.write(f"Assistant: {item[2]}")
-    st.divider()
+        st.write(
+            f"### {note[1]}"
+        )
+
+        st.write(
+            note[2]
+        )
+
+        st.caption(
+            f"Created: {note[3]}"
+        )
+
+        st.divider()
