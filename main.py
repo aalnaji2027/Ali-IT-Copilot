@@ -145,13 +145,14 @@ with st.sidebar:
 # =========================
 
 if page == "💬 Conversations":
+    
 
     st.title("🤖 Ali IT Copilot")
     st.caption(
     "Personal AI Workspace • Conversations • Notes • Projects • Future AI Assistance"
 )
 
-    history = get_conversations()
+history = get_conversations()
 notes = get_notes()
 projects = get_projects()
 
