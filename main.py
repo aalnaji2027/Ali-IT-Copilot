@@ -6,6 +6,10 @@ from src.memory.conversation import (
     clear_conversations
 )
 
+from src.memory.projects import (
+    save_project,
+    get_projects
+)
 from src.memory.notes import (
     save_note,
     get_notes
@@ -23,12 +27,13 @@ with st.sidebar:
     st.header("🤖 Ali IT Copilot")
 
     page = st.radio(
-        "Navigation",
-        [
-            "Conversations",
-            "Notes"
-        ]
-    )
+    "Navigation",
+    [
+        "Conversations",
+        "Notes",
+        "Projects"
+    ]
+)
 
     st.write("---")
 
@@ -155,6 +160,65 @@ if page == "Notes":
 
         st.caption(
             f"Created: {note[3]}"
+        )
+
+        st.divider()
+        # =========================
+# Projects Page
+# =========================
+
+if page == "Projects":
+
+    st.title("📁 Projects")
+
+    project_name = st.text_input(
+        "Project Name",
+        key="project_name"
+    )
+
+    project_description = st.text_area(
+        "Description",
+        key="project_description"
+    )
+
+    project_status = st.selectbox(
+        "Status",
+        [
+            "Planned",
+            "In Progress",
+            "Completed",
+            "On Hold"
+        ]
+    )
+
+    if st.button("Save Project"):
+
+        save_project(
+            project_name,
+            project_description,
+            project_status
+        )
+
+        st.success(
+            "Project saved successfully"
+        )
+
+    st.subheader("Saved Projects")
+
+    projects = get_projects()
+
+    for project in projects:
+
+        st.write(
+            f"### {project[1]}"
+        )
+
+        st.write(
+            project[2]
+        )
+
+        st.write(
+            f"**Status:** {project[3]}"
         )
 
         st.divider()
