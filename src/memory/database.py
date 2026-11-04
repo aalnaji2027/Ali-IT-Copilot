@@ -37,6 +37,18 @@ def create_database():
     )
     """)
 
+    cursor.execute(
+    """
+    CREATE TABLE IF NOT EXISTS knowledge (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_name TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """
+)
+
+
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS preferences (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

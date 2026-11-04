@@ -10,6 +10,11 @@ from src.memory.projects import (
     save_project,
     get_projects
 )
+
+from src.memory.knowledge import (
+    save_document,
+    get_documents
+)
 from src.memory.notes import (
     save_note,
     get_notes
@@ -129,7 +134,8 @@ with st.sidebar:
     [
         "💬 Conversations",
         "📝 Notes",
-        "📁 Projects"
+        "📁 Projects",
+        "📚 Knowledge"
     ]
 )
 
@@ -333,3 +339,46 @@ if page == "📁 Projects":
         )
 
         st.divider()
+
+# =========================
+# Knowledge Page
+# =========================
+
+if page == "📚 Knowledge":
+
+    st.title("📚 Knowledge Repository")
+
+    uploaded_file = st.file_uploader(
+        "Upload a document",
+        type=["pdf", "docx", "txt"]
+    )
+
+    if uploaded_file is not None:
+
+        file_path = f"knowledge/{uploaded_file.name}"
+
+        with open(file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+
+        save_document(
+            uploaded_file.name,
+            file_path
+        )
+
+        st.success(
+            "Document uploaded successfully"
+        )
+
+    st.subheader("Saved Documents")
+
+    documents = get_documents()
+
+    for document in documents:
+
+        st.write(
+            f"📄 {document[1]}"
+        )
+
+        st.caption(
+            document[2]
+        )
