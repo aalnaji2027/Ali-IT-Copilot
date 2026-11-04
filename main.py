@@ -151,85 +151,73 @@ with st.sidebar:
 # =========================
 
 if page == "💬 Conversations":
-    
 
     st.title("🤖 Ali IT Copilot")
+
     st.caption(
-    "Personal AI Workspace • Conversations • Notes • Projects • Future AI Assistance"
-)
-
-history = get_conversations()
-notes = get_notes()
-projects = get_projects()
-
-col1, col2, col3 = st.columns(3)
-
-
-
-with col2:
-    st.metric(
-        "📝 Notes",
-        len(notes)
+        "Personal AI Workspace • Conversations • Notes • Projects • Future AI Assistance"
     )
 
-with col3:
-    st.metric(
-        "📁 Projects",
-        len(projects)
-    )
+    history = get_conversations()
+    notes = get_notes()
+    projects = get_projects()
 
+    col1, col2, col3 = st.columns(3)
 
     with col1:
         st.metric(
-            "Total Conversations",
+            "💬 Conversations",
             len(history)
         )
 
-    
+    with col2:
+        st.metric(
+            "📝 Notes",
+            len(notes)
+        )
+
+    with col3:
+        st.metric(
+            "📁 Projects",
+            len(projects)
+        )
 
     if st.button("🗑 Clear History"):
         clear_conversations()
         st.rerun()
 
-    
-
-
-
     st.subheader("Conversation History")
 
-history = get_conversations()
+    for item in history:
 
-for item in history:
+        with st.chat_message("user"):
+            st.write(item[1])
 
-    with st.chat_message("user"):
-        st.write(item[1])
+        with st.chat_message("assistant"):
+            st.write(item[2])
 
-    with st.chat_message("assistant"):
-        st.write(item[2])
-
-
-user_message = st.chat_input(
-    "Message Ali IT Copilot..."
-)
-
-if user_message:
-
-    logger.info(
-        f"User message: {user_message}"
+    user_message = st.chat_input(
+        "Message Ali IT Copilot..."
     )
 
-    response = f"Received: {user_message}"
+    if user_message:
 
-    save_conversation(
-        user_message,
-        response
-    )
+        logger.info(
+            f"User message: {user_message}"
+        )
 
-    logger.info(
-        f"Assistant response: {response}"
-    )
+        response = f"Received: {user_message}"
 
-    st.rerun()
+        save_conversation(
+            user_message,
+            response
+        )
+
+        logger.info(
+            f"Assistant response: {response}"
+        )
+
+        st.rerun()
 
 
 # =========================
@@ -237,7 +225,7 @@ if user_message:
 # =========================
 
 if page == "📝 Notes":
-
+   
     st.title("📝 Notes")
 
     note_title = st.text_input(
@@ -285,7 +273,7 @@ if page == "📝 Notes":
 # =========================
 
 if page == "📁 Projects":
-
+   
     st.title("📁 Projects")
 
     project_name = st.text_input(
