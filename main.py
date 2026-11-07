@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import streamlit as st
@@ -41,8 +42,129 @@ from src.services.text_chunker import (
     split_text_into_chunks,
 )
 
+from src.services.local_ai import (
+    check_local_ai,
+    generate_local_response,
+)
+
 from src.services.logger import logger
 
+# =========================
+# Local AI and Retrieval
+# =========================
+
+KNOWLEDGE_STOP_WORDS = {
+    "about",
+    "after",
+    "again",
+    "also",
+    "been",
+    "before",
+    "could",
+    "does",
+    "from",
+    "have",
+    "into",
+    "more",
+    "repository",
+    "should",
+    "tell",
+    "that",
+    "their",
+    "there",
+    "these",
+    "they",
+    "this",
+    "using",
+    "what",
+    "when",
+    "where",
+    "which",
+    "with",
+    "would",
+    "your",
+}
+
+
+@st.cache_data(ttl=15)
+def get_cached_local_ai_status():
+    """Check Ollama without repeating the request on every rerun."""
+
+    return check_local_ai()
+
+
+def retrieve_knowledge_for_question(
+    question,
+    maximum_results=5,
+):
+    """Retrieve relevant indexed chunks for a user question."""
+
+    clean_question = question.strip()
+
+    if not clean_question:
+        return []
+
+    collected_results = []
+    collected_chunk_ids = set()
+
+    def add_results(results):
+        for result in results:
+            chunk_id = result["chunk_id"]
+
+            if chunk_id in collected_chunk_ids:
+                continue
+
+            collected_chunk_ids.add(chunk_id)
+            collected_results.append(result)
+
+            if len(collected_results) >= maximum_results:
+                break
+
+    complete_query_results = search_knowledge_chunks(
+        clean_question,
+        limit=maximum_results,
+    )
+
+    add_results(
+        complete_query_results
+    )
+
+    if len(collected_results) >= maximum_results:
+        return collected_results
+
+    keywords = re.findall(
+        r"[A-Za-z0-9]+",
+        clean_question.lower(),
+    )
+
+    meaningful_keywords = []
+
+    for keyword in keywords:
+
+        if len(keyword) < 4:
+            continue
+
+        if keyword in KNOWLEDGE_STOP_WORDS:
+            continue
+
+        if keyword not in meaningful_keywords:
+            meaningful_keywords.append(keyword)
+
+    for keyword in meaningful_keywords:
+
+        keyword_results = search_knowledge_chunks(
+            keyword,
+            limit=maximum_results,
+        )
+
+        add_results(
+            keyword_results
+        )
+
+        if len(collected_results) >= maximum_results:
+            break
+
+    return collected_results
 
 # =========================
 # Streamlit Configuration
@@ -201,7 +323,34 @@ with st.sidebar:
 
     st.success("✅ Database Connected")
     st.success("✅ Logging Active")
-    st.info("⏳ AI Not Connected")
+    local_ai_status = get_cached_local_ai_status()
+
+    if (
+        local_ai_status["connected"]
+        and local_ai_status["model_available"]
+    ):
+        st.success(
+            f"✅ Local AI: "
+            f"{local_ai_status['model']}"
+        )
+
+    elif local_ai_status["connected"]:
+        st.warning(
+            f"⚠️ Model unavailable: "
+            f"{local_ai_status['model']}"
+        )
+
+    else:
+        st.error(
+            "❌ Ollama is not connected"
+        )
+
+        with st.expander(
+            "Local AI connection details"
+        ):
+            st.caption(
+                local_ai_status["error"]
+            )
 
 
 # =========================
@@ -278,16 +427,89 @@ if page == "💬 Conversations":
             f"User message: {user_message}"
         )
 
-        response = f"Received: {user_message}"
+        with st.spinner(
+            "Searching knowledge and generating "
+            "a local response..."
+        ):
 
-        save_conversation(
-            user_message,
-            response,
-        )
+            knowledge_results = (
+                retrieve_knowledge_for_question(
+                    user_message,
+                    maximum_results=5,
+                )
+            )
 
-        logger.info(
-            f"Assistant response: {response}"
-        )
+            conversation_history = []
+
+            for history_item in reversed(
+                history[:6]
+            ):
+                conversation_history.append(
+                    {
+                        "user": history_item[1],
+                        "assistant": history_item[2],
+                    }
+                )
+
+            ai_result = generate_local_response(
+                user_message=user_message,
+                knowledge_results=knowledge_results,
+                conversation_history=conversation_history,
+            )
+
+        if ai_result["success"]:
+
+            response = ai_result["response"]
+
+            if ai_result["sources"]:
+
+                source_lines = []
+
+                for source in ai_result["sources"]:
+                    source_lines.append(
+                        f"- {source['file_name']} "
+                        f"(Chunk "
+                        f"{source['sequence_number']})"
+                    )
+
+                response = (
+                    f"{response}\n\n"
+                    f"**Knowledge sources:**\n"
+                    + "\n".join(source_lines)
+                )
+
+            else:
+                response = (
+                    f"{response}\n\n"
+                    f"*No indexed knowledge source "
+                    f"was retrieved for this question.*"
+                )
+
+            save_conversation(
+                user_message,
+                response,
+            )
+
+            logger.info(
+                f"Local AI response generated with "
+                f"{len(ai_result['sources'])} source(s)"
+            )
+
+            st.rerun()
+
+        else:
+            logger.error(
+                f"Local AI response failed: "
+                f"{ai_result['error']}"
+            )
+
+            st.error(
+                "The local AI could not generate a response."
+            )
+
+            st.caption(
+                ai_result["error"]
+            )
 
         st.rerun()
 
