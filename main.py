@@ -24,6 +24,7 @@ from src.memory.knowledge import (
     get_document_chunks,
     delete_document_chunks,
     get_index_statistics,
+    search_knowledge_chunks,
 )
 
 from src.memory.notes import (
@@ -62,7 +63,6 @@ st.markdown(
     """
     <style>
 
-    /* Main Background */
     .stApp {
         background: linear-gradient(
             135deg,
@@ -73,7 +73,6 @@ st.markdown(
         color: #E6EDF7;
     }
 
-    /* Sidebar */
     [data-testid="stSidebar"] {
         background: rgba(10, 25, 47, 0.85);
         backdrop-filter: blur(20px);
@@ -81,21 +80,19 @@ st.markdown(
         border-right: 1px solid rgba(255, 255, 255, 0.1);
     }
 
-    /* Headers */
     h1,
     h2,
-    h3 {
+    h3,
+    h4 {
         color: #F8FAFC !important;
     }
 
-    /* Paragraphs and Labels */
     p,
     label,
     .stCaption {
         color: #D6E2F0;
     }
 
-    /* Input Fields */
     .stTextInput input,
     .stTextArea textarea,
     .stSelectbox div[data-baseweb="select"] {
@@ -105,7 +102,6 @@ st.markdown(
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
     }
 
-    /* File Uploader */
     [data-testid="stFileUploader"] {
         background: rgba(17, 34, 64, 0.45);
         padding: 16px;
@@ -113,7 +109,6 @@ st.markdown(
         border: 1px solid rgba(148, 163, 184, 0.15);
     }
 
-    /* Buttons */
     .stButton button {
         background: rgba(15, 23, 42, 0.45);
         backdrop-filter: blur(14px);
@@ -135,7 +130,6 @@ st.markdown(
             0 8px 20px rgba(59, 130, 246, 0.15);
     }
 
-    /* Metric Cards */
     [data-testid="stMetric"] {
         background: rgba(17, 34, 64, 0.65);
         backdrop-filter: blur(18px);
@@ -153,7 +147,6 @@ st.markdown(
         color: #FFFFFF;
     }
 
-    /* Chat Messages */
     [data-testid="stChatMessage"] {
         background: rgba(17, 34, 64, 0.45);
         border: 1px solid rgba(148, 163, 184, 0.12);
@@ -161,19 +154,22 @@ st.markdown(
         padding: 12px;
     }
 
-    /* Alerts */
+    [data-testid="stExpander"] {
+        background: rgba(17, 34, 64, 0.35);
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        border-radius: 14px;
+    }
+
     .stAlert {
         border-radius: 14px;
     }
 
-    /* Radio Buttons Area */
     div[role="radiogroup"] {
         background: rgba(17, 34, 64, 0.4);
         padding: 10px;
         border-radius: 12px;
     }
 
-    /* Horizontal Line */
     hr {
         border-color: rgba(255, 255, 255, 0.08);
     }
@@ -218,28 +214,28 @@ if page == "💬 Conversations":
 
     st.caption(
         "Personal AI Workspace • Conversations • Notes • "
-        "Projects • Future AI Assistance"
+        "Projects • Knowledge Assistance"
     )
 
     history = get_conversations()
     notes = get_notes()
     projects = get_projects()
 
-    col1, col2, col3 = st.columns(3)
+    conversation_col, note_col, project_col = st.columns(3)
 
-    with col1:
+    with conversation_col:
         st.metric(
             "💬 Conversations",
             len(history),
         )
 
-    with col2:
+    with note_col:
         st.metric(
             "📝 Notes",
             len(notes),
         )
 
-    with col3:
+    with project_col:
         st.metric(
             "📁 Projects",
             len(projects),
@@ -480,7 +476,7 @@ elif page == "📚 Knowledge":
     st.title("📚 Knowledge Repository")
 
     st.caption(
-        "Upload, preview, index, and manage documents "
+        "Upload, preview, index, search, and manage documents "
         "used by Ali IT Copilot."
     )
 
@@ -554,7 +550,9 @@ elif page == "📚 Knowledge":
         ):
 
             try:
-                knowledge_directory = Path("knowledge")
+                knowledge_directory = Path(
+                    "knowledge"
+                )
 
                 knowledge_directory.mkdir(
                     parents=True,
@@ -612,6 +610,118 @@ elif page == "📚 Knowledge":
     st.divider()
 
     # =========================
+    # Indexed Knowledge Search
+    # =========================
+
+    st.subheader(
+        "🔎 Search Indexed Knowledge"
+    )
+
+    st.caption(
+        "Search inside the content of all indexed "
+        "knowledge documents."
+    )
+
+    knowledge_query = st.text_input(
+        "Knowledge search query",
+        placeholder=(
+            "Example: Project Management Professional"
+        ),
+        key="indexed_knowledge_search",
+    )
+
+    search_limit = st.slider(
+        "Maximum passages",
+        min_value=1,
+        max_value=20,
+        value=5,
+        step=1,
+        key="knowledge_search_limit",
+    )
+
+    if knowledge_query.strip():
+
+        try:
+            knowledge_results = (
+                search_knowledge_chunks(
+                    knowledge_query.strip(),
+                    limit=search_limit,
+                )
+            )
+
+            if not knowledge_results:
+                st.info(
+                    "No indexed passages matched this query. "
+                    "Try a shorter keyword or index more documents."
+                )
+
+            else:
+                st.success(
+                    f"Found {len(knowledge_results)} "
+                    f"matching passage(s)."
+                )
+
+                for result_number, result in enumerate(
+                    knowledge_results,
+                    start=1,
+                ):
+
+                    result_title = (
+                        f"Result {result_number}: "
+                        f"{result['file_name']} • "
+                        f"Chunk {result['sequence_number']}"
+                    )
+
+                    with st.expander(
+                        result_title,
+                        expanded=result_number == 1,
+                    ):
+
+                        st.caption(
+                            f"Source: {result['file_name']} • "
+                            f"Chunk: "
+                            f"{result['sequence_number']} • "
+                            f"Words: {result['word_count']} • "
+                            f"Characters: "
+                            f"{result['character_count']}"
+                        )
+
+                        st.write(
+                            result["content"]
+                        )
+
+                        st.caption(
+                            f"Saved path: "
+                            f"{result['file_path']}"
+                        )
+
+        except Exception as error:
+
+            logger.exception(
+                "Indexed knowledge search failed"
+            )
+
+            st.error(
+                f"Knowledge search failed: {error}"
+            )
+
+    else:
+
+        if index_statistics["total_chunks"] > 0:
+            st.info(
+                "Enter a keyword or phrase to search "
+                "the indexed knowledge repository."
+            )
+
+        else:
+            st.warning(
+                "No indexed knowledge is available. "
+                "Index at least one document first."
+            )
+
+    st.divider()
+
+    # =========================
     # Saved Documents
     # =========================
 
@@ -655,8 +765,8 @@ elif page == "📚 Knowledge":
             file_name = document[1]
             file_path = document[2]
 
-            document_column, delete_column = st.columns(
-                [5, 1]
+            document_column, delete_column = (
+                st.columns([5, 1])
             )
 
             with document_column:
@@ -669,12 +779,15 @@ elif page == "📚 Knowledge":
                     file_path
                 )
 
-                physical_file = Path(file_path)
+                physical_file = Path(
+                    file_path
+                )
 
                 if physical_file.exists():
 
                     file_size_kb = (
-                        physical_file.stat().st_size / 1024
+                        physical_file.stat().st_size
+                        / 1024
                     )
 
                     st.success(
@@ -693,13 +806,18 @@ elif page == "📚 Knowledge":
                     # =========================
 
                     preview_state_key = (
-                        f"document_preview_{document_id}"
+                        f"document_preview_"
+                        f"{document_id}"
                     )
 
                     if st.button(
                         "Preview Content",
-                        key=f"preview_button_{document_id}",
+                        key=(
+                            f"preview_button_"
+                            f"{document_id}"
+                        ),
                     ):
+
                         with st.spinner(
                             f"Reading {file_name}..."
                         ):
@@ -709,19 +827,24 @@ elif page == "📚 Knowledge":
                                 file_path
                             )
 
-                    if preview_state_key in st.session_state:
+                    if (
+                        preview_state_key
+                        in st.session_state
+                    ):
 
-                        preview_result = st.session_state[
-                            preview_state_key
-                        ]
+                        preview_result = (
+                            st.session_state[
+                                preview_state_key
+                            ]
+                        )
 
                         if preview_result["success"]:
 
-                            metric_col1, metric_col2 = (
+                            preview_col1, preview_col2 = (
                                 st.columns(2)
                             )
 
-                            with metric_col1:
+                            with preview_col1:
                                 st.metric(
                                     "Words",
                                     preview_result[
@@ -729,7 +852,7 @@ elif page == "📚 Knowledge":
                                     ],
                                 )
 
-                            with metric_col2:
+                            with preview_col2:
                                 st.metric(
                                     "Characters",
                                     preview_result[
@@ -786,7 +909,9 @@ elif page == "📚 Knowledge":
                     # Knowledge Index
                     # =========================
 
-                    st.markdown("#### Knowledge Index")
+                    st.markdown(
+                        "#### Knowledge Index"
+                    )
 
                     chunk_count = (
                         get_document_chunk_count(
@@ -797,7 +922,8 @@ elif page == "📚 Knowledge":
                     if chunk_count > 0:
 
                         st.success(
-                            f"Indexed with {chunk_count} "
+                            f"Indexed with "
+                            f"{chunk_count} "
                             f"knowledge chunk(s).",
                             icon="🧩",
                         )
@@ -868,14 +994,16 @@ elif page == "📚 Knowledge":
                                     )
 
                                     logger.info(
-                                        f"Knowledge document indexed: "
-                                        f"{file_name}; chunks: "
+                                        f"Knowledge document "
+                                        f"indexed: {file_name}; "
+                                        f"chunks: "
                                         f"{saved_chunk_count}"
                                     )
 
                                     st.success(
-                                        f"{file_name} was indexed "
-                                        f"into {saved_chunk_count} "
+                                        f"{file_name} was "
+                                        f"indexed into "
+                                        f"{saved_chunk_count} "
                                         f"chunk(s)."
                                     )
 
@@ -894,7 +1022,9 @@ elif page == "📚 Knowledge":
                                 )
                             )
 
-                            for indexed_chunk in indexed_chunks:
+                            for indexed_chunk in (
+                                indexed_chunks
+                            ):
 
                                 st.markdown(
                                     f"**Chunk "
@@ -919,7 +1049,9 @@ elif page == "📚 Knowledge":
                                         f"chunk_content_"
                                         f"{indexed_chunk['id']}"
                                     ),
-                                    label_visibility="collapsed",
+                                    label_visibility=(
+                                        "collapsed"
+                                    ),
                                 )
 
                                 st.divider()
@@ -946,7 +1078,8 @@ elif page == "📚 Knowledge":
                             )
 
                             st.success(
-                                f"Removed {removed_count} "
+                                f"Removed "
+                                f"{removed_count} "
                                 f"indexed chunk(s)."
                             )
 
@@ -963,7 +1096,10 @@ elif page == "📚 Knowledge":
 
                 if st.button(
                     "Delete",
-                    key=f"delete_document_{document_id}",
+                    key=(
+                        f"delete_document_"
+                        f"{document_id}"
+                    ),
                     type="secondary",
                 ):
 
@@ -971,8 +1107,10 @@ elif page == "📚 Knowledge":
                         document_id
                     )
 
-                    deleted_path = delete_document(
-                        document_id
+                    deleted_path = (
+                        delete_document(
+                            document_id
+                        )
                     )
 
                     if deleted_path:
@@ -988,7 +1126,8 @@ elif page == "📚 Knowledge":
                         )
 
                         preview_state_key = (
-                            f"document_preview_{document_id}"
+                            f"document_preview_"
+                            f"{document_id}"
                         )
 
                         if (
