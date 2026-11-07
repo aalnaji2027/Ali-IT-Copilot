@@ -35,3 +35,4 @@ data/database/*.sqlite3
 # Private knowledge documents
 knowledge/*
 !knowledge/.gitkeep
+backup/
