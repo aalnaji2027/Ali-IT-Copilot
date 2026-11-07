@@ -19,6 +19,11 @@ from src.memory.knowledge import (
     search_documents,
     get_document_statistics,
     delete_document,
+    index_document_chunks,
+    get_document_chunk_count,
+    get_document_chunks,
+    delete_document_chunks,
+    get_index_statistics,
 )
 
 from src.memory.notes import (
@@ -26,13 +31,17 @@ from src.memory.notes import (
     get_notes,
 )
 
-from src.services.logger import logger
-
 from src.services.document_reader import (
     create_document_preview,
+    extract_document_text,
+)
+
+from src.services.text_chunker import (
+    split_text_into_chunks,
 )
 
 from src.services.logger import logger
+
 
 # =========================
 # Streamlit Configuration
@@ -152,7 +161,7 @@ st.markdown(
         padding: 12px;
     }
 
-    /* Success and Information Messages */
+    /* Alerts */
     .stAlert {
         border-radius: 14px;
     }
@@ -471,14 +480,20 @@ elif page == "📚 Knowledge":
     st.title("📚 Knowledge Repository")
 
     st.caption(
-        "Upload, search, review, and manage documents "
+        "Upload, preview, index, and manage documents "
         "used by Ali IT Copilot."
     )
 
-    # Repository statistics
-    statistics = get_document_statistics()
+    # =========================
+    # Repository Statistics
+    # =========================
 
-    stat_col1, stat_col2 = st.columns(2)
+    statistics = get_document_statistics()
+    index_statistics = get_index_statistics()
+
+    stat_col1, stat_col2, stat_col3, stat_col4 = (
+        st.columns(4)
+    )
 
     with stat_col1:
         st.metric(
@@ -488,13 +503,33 @@ elif page == "📚 Knowledge":
 
     with stat_col2:
         st.metric(
-            "🗂 Unique File Names",
+            "🗂 Unique Files",
             statistics["unique_file_names"],
         )
 
+    with stat_col3:
+        st.metric(
+            "🧩 Indexed Chunks",
+            index_statistics["total_chunks"],
+        )
+
+    with stat_col4:
+        st.metric(
+            "🔎 Indexed Documents",
+            index_statistics["indexed_documents"],
+        )
+
+    st.caption(
+        f"Indexed words: "
+        f"{index_statistics['indexed_words']:,}"
+    )
+
     st.divider()
 
-    # Document upload area
+    # =========================
+    # Document Upload
+    # =========================
+
     st.subheader("Upload Document")
 
     uploaded_file = st.file_uploader(
@@ -576,7 +611,10 @@ elif page == "📚 Knowledge":
 
     st.divider()
 
-    # Search area
+    # =========================
+    # Saved Documents
+    # =========================
+
     st.subheader("Saved Documents")
 
     search_term = st.text_input(
@@ -645,9 +683,14 @@ elif page == "📚 Knowledge":
                     )
 
                     st.caption(
-                        f"Type: {physical_file.suffix.upper()} • "
+                        f"Type: "
+                        f"{physical_file.suffix.upper()} • "
                         f"Size: {file_size_kb:.1f} KB"
                     )
+
+                    # =========================
+                    # Document Preview
+                    # =========================
 
                     preview_state_key = (
                         f"document_preview_{document_id}"
@@ -730,6 +773,7 @@ elif page == "📚 Knowledge":
                                 del st.session_state[
                                     preview_state_key
                                 ]
+
                                 st.rerun()
 
                         else:
@@ -737,6 +781,176 @@ elif page == "📚 Knowledge":
                                 preview_result["error"],
                                 icon="⚠️",
                             )
+
+                    # =========================
+                    # Knowledge Index
+                    # =========================
+
+                    st.markdown("#### Knowledge Index")
+
+                    chunk_count = (
+                        get_document_chunk_count(
+                            document_id
+                        )
+                    )
+
+                    if chunk_count > 0:
+
+                        st.success(
+                            f"Indexed with {chunk_count} "
+                            f"knowledge chunk(s).",
+                            icon="🧩",
+                        )
+
+                        index_button_label = (
+                            "Re-index Document"
+                        )
+
+                    else:
+                        st.info(
+                            "This document has not been "
+                            "indexed yet.",
+                            icon="ℹ️",
+                        )
+
+                        index_button_label = (
+                            "Index Document"
+                        )
+
+                    if st.button(
+                        index_button_label,
+                        key=(
+                            f"index_document_"
+                            f"{document_id}"
+                        ),
+                    ):
+
+                        with st.spinner(
+                            f"Extracting and indexing "
+                            f"{file_name}..."
+                        ):
+
+                            extraction_result = (
+                                extract_document_text(
+                                    file_path
+                                )
+                            )
+
+                            if not extraction_result[
+                                "success"
+                            ]:
+                                st.error(
+                                    "Indexing failed: "
+                                    f"{extraction_result['error']}"
+                                )
+
+                            else:
+                                chunks = (
+                                    split_text_into_chunks(
+                                        extraction_result[
+                                            "text"
+                                        ]
+                                    )
+                                )
+
+                                if not chunks:
+                                    st.error(
+                                        "No usable knowledge "
+                                        "chunks were produced."
+                                    )
+
+                                else:
+                                    saved_chunk_count = (
+                                        index_document_chunks(
+                                            document_id,
+                                            chunks,
+                                        )
+                                    )
+
+                                    logger.info(
+                                        f"Knowledge document indexed: "
+                                        f"{file_name}; chunks: "
+                                        f"{saved_chunk_count}"
+                                    )
+
+                                    st.success(
+                                        f"{file_name} was indexed "
+                                        f"into {saved_chunk_count} "
+                                        f"chunk(s)."
+                                    )
+
+                                    st.rerun()
+
+                    if chunk_count > 0:
+
+                        with st.expander(
+                            "View Indexed Chunks",
+                            expanded=False,
+                        ):
+
+                            indexed_chunks = (
+                                get_document_chunks(
+                                    document_id
+                                )
+                            )
+
+                            for indexed_chunk in indexed_chunks:
+
+                                st.markdown(
+                                    f"**Chunk "
+                                    f"{indexed_chunk['sequence_number']}**"
+                                )
+
+                                st.caption(
+                                    f"{indexed_chunk['word_count']} "
+                                    f"words • "
+                                    f"{indexed_chunk['character_count']} "
+                                    f"characters"
+                                )
+
+                                st.text_area(
+                                    "Chunk content",
+                                    value=indexed_chunk[
+                                        "content"
+                                    ],
+                                    height=160,
+                                    disabled=True,
+                                    key=(
+                                        f"chunk_content_"
+                                        f"{indexed_chunk['id']}"
+                                    ),
+                                    label_visibility="collapsed",
+                                )
+
+                                st.divider()
+
+                        if st.button(
+                            "Remove Index",
+                            key=(
+                                f"remove_index_"
+                                f"{document_id}"
+                            ),
+                            type="secondary",
+                        ):
+
+                            removed_count = (
+                                delete_document_chunks(
+                                    document_id
+                                )
+                            )
+
+                            logger.info(
+                                f"Knowledge index removed: "
+                                f"{file_name}; chunks: "
+                                f"{removed_count}"
+                            )
+
+                            st.success(
+                                f"Removed {removed_count} "
+                                f"indexed chunk(s)."
+                            )
+
+                            st.rerun()
 
                 else:
                     st.warning(
@@ -752,6 +966,10 @@ elif page == "📚 Knowledge":
                     key=f"delete_document_{document_id}",
                     type="secondary",
                 ):
+
+                    delete_document_chunks(
+                        document_id
+                    )
 
                     deleted_path = delete_document(
                         document_id
