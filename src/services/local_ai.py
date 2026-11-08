@@ -170,6 +170,89 @@ def build_knowledge_context(
     )
 
 
+def build_personal_context(
+    notes=None,
+    projects=None,
+    maximum_characters=8000,
+):
+    """Build private local context from saved notes and projects."""
+    sections = []
+
+    note_items = []
+
+    for note in notes or []:
+        if len(note) < 3:
+            continue
+
+        title = str(note[1] or "").strip()
+        content = str(note[2] or "").strip()
+
+        if title or content:
+            note_items.append(
+                "\n".join(
+                    [
+                        f"Note title: {title or 'Untitled'}",
+                        f"Note content: {content}",
+                    ]
+                )
+            )
+
+    if note_items:
+        sections.append(
+            "Saved personal notes:\n\n"
+            + "\n\n".join(note_items)
+        )
+
+    project_items = []
+
+    for project in projects or []:
+        if len(project) < 4:
+            continue
+
+        name = str(project[1] or "").strip()
+        description = str(project[2] or "").strip()
+        status = str(project[3] or "").strip()
+
+        if name or description or status:
+            project_items.append(
+                "\n".join(
+                    [
+                        f"Project name: {name or 'Unnamed project'}",
+                        (
+                            "Description: "
+                            f"{description or 'Not provided'}"
+                        ),
+                        f"Status: {status or 'Not provided'}",
+                    ]
+                )
+            )
+
+    if project_items:
+        sections.append(
+            "Saved projects:\n\n"
+            + "\n\n".join(project_items)
+        )
+
+    if not sections:
+        return (
+            "No saved personal notes or projects are available."
+        )
+
+    personal_context = "\n\n".join(sections)
+    safe_limit = max(
+        1000,
+        int(maximum_characters),
+    )
+
+    if len(personal_context) > safe_limit:
+        personal_context = (
+            personal_context[:safe_limit].rstrip()
+            + "\n\n[Personal context shortened]"
+        )
+
+    return personal_context
+
+
 def build_language_instruction(
     user_message,
 ):
@@ -191,6 +274,8 @@ def generate_local_response(
     user_message,
     knowledge_results=None,
     conversation_history=None,
+    notes=None,
+    projects=None,
 ):
     """Generate a local, knowledge-grounded answer."""
 
@@ -204,6 +289,11 @@ def generate_local_response(
 
     knowledge_context = build_knowledge_context(
         knowledge_results
+    )
+
+    personal_context = build_personal_context(
+        notes=notes,
+        projects=projects,
     )
 
     language_instruction = (
@@ -248,6 +338,10 @@ def generate_local_response(
             )
 
     grounded_prompt = f"""
+Personal workspace context:
+
+{personal_context}
+
 Knowledge context:
 
 {knowledge_context}
@@ -259,6 +353,15 @@ Latest user question:
 Instructions:
 
 {language_instruction}
+
+Use saved Notes and Projects only when they are relevant to the
+latest question.
+
+Do not invent personal facts, notes, project names, descriptions,
+or statuses that are absent from the personal workspace context.
+
+If requested personal information is unavailable, clearly state
+that it has not been saved in Notes or Projects.
 
 Use the knowledge context only when it directly helps answer the
 latest question.

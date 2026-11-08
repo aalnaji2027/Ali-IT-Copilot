@@ -45,6 +45,40 @@ def get_cached_local_ai_status():
     return check_local_ai()
 
 
+def detect_personal_workspace_sources(user_message):
+    """Identify whether a question targets Notes or Projects."""
+    normalized_message = str(user_message or "").lower()
+
+    note_terms = (
+        "note",
+        "notes",
+        "saved note",
+        "my information",
+        "personal information",
+        "what have i saved",
+        "what did i save",
+        "summarize my saved",
+    )
+
+    project_terms = (
+        "project",
+        "projects",
+        "working on",
+        "project status",
+        "status of",
+    )
+
+    sources = []
+
+    if any(term in normalized_message for term in note_terms):
+        sources.append("Notes")
+
+    if any(term in normalized_message for term in project_terms):
+        sources.append("Projects")
+
+    return sources
+
+
 # =========================
 # Streamlit Configuration
 # =========================
@@ -219,12 +253,19 @@ if page == "💬 Conversations":
         logger.info(f"User message: {user_message}")
 
         with st.spinner("Searching knowledge and generating a local response..."):
-            knowledge_results = rank_knowledge_results(
-                query=user_message,
-                maximum_results=5,
-                minimum_score=10,
-                context_character_limit=12000,
+            personal_workspace_sources = (
+                detect_personal_workspace_sources(user_message)
             )
+
+            if personal_workspace_sources:
+                knowledge_results = []
+            else:
+                knowledge_results = rank_knowledge_results(
+                    query=user_message,
+                    maximum_results=5,
+                    minimum_score=10,
+                    context_character_limit=12000,
+                )
 
             retrieval_diagnostics = get_retrieval_diagnostics(
                 user_message,
@@ -252,13 +293,27 @@ if page == "💬 Conversations":
                 user_message=user_message,
                 knowledge_results=knowledge_results,
                 conversation_history=conversation_history,
+                notes=notes,
+                projects=projects,
             )
 
         if ai_result["success"]:
             response = ai_result["response"]
 
-            if ai_result["sources"]:
+            if personal_workspace_sources:
+                personal_source_lines = [
+                    f"- {source_name}"
+                    for source_name in personal_workspace_sources
+                ]
+
+                response = (
+                    f"{response}\n\n"
+                    f"**Personal workspace sources:**\n"
+                    + "\n".join(personal_source_lines)
+                )
+            elif ai_result["sources"]:
                 source_lines = []
+
                 for source in ai_result["sources"]:
                     source_lines.append(
                         f"- {source['file_name']}"
@@ -270,11 +325,7 @@ if page == "💬 Conversations":
                     + "\n".join(source_lines)
                 )
             else:
-                response = (
-                    f"{response}\n\n"
-                    f"*No indexed knowledge source was retrieved "
-                    f"for this question.*"
-                )
+                response = response
 
             save_conversation(user_message, response)
             logger.info(
