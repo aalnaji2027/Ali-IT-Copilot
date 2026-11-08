@@ -1,11 +1,43 @@
+import html
+import re
 from pathlib import Path
 
+from bs4 import BeautifulSoup
 from docx import Document
 from pypdf import PdfReader
 
 
 SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx"}
 DEFAULT_PREVIEW_LENGTH = 5000
+
+
+def clean_document_text(text: str) -> str:
+    """Convert HTML-rich document content into clean searchable text."""
+    if not text:
+        return ""
+
+    cleaned_text = html.unescape(str(text))
+
+    # Some copied content may be encoded more than once.
+    # Decode it a second time when encoded HTML remains.
+    if "&lt;" in cleaned_text or "&gt;" in cleaned_text:
+        cleaned_text = html.unescape(cleaned_text)
+
+    # Remove HTML tags while preserving readable line separation.
+    if re.search(r"<[a-zA-Z][^>]*>", cleaned_text):
+        soup = BeautifulSoup(cleaned_text, "html.parser")
+        cleaned_text = soup.get_text(separator="\n")
+
+    # Remove invisible characters and normalize whitespace.
+    cleaned_text = cleaned_text.replace("\u00a0", " ")
+    cleaned_text = cleaned_text.replace("\u200b", "")
+    cleaned_text = cleaned_text.replace("\ufeff", "")
+
+    cleaned_text = re.sub(r"[ \t]+", " ", cleaned_text)
+    cleaned_text = re.sub(r" *\n *", "\n", cleaned_text)
+    cleaned_text = re.sub(r"\n{3,}", "\n\n", cleaned_text)
+
+    return cleaned_text.strip()
 
 
 def read_text_file(file_path):
@@ -82,7 +114,7 @@ def read_docx_file(file_path):
 
 
 def extract_document_text(file_path):
-    """Extract text and return a structured result."""
+    """Extract, clean, and return a structured document result."""
     path = Path(file_path)
     extension = path.suffix.lower()
 
@@ -122,7 +154,9 @@ def extract_document_text(file_path):
         else:
             extracted_text = read_docx_file(path)
 
-        extracted_text = extracted_text.strip()
+        # Clean HTML and encoded HTML before previewing,
+        # chunking, counting, or storing the content.
+        extracted_text = clean_document_text(extracted_text)
 
         if not extracted_text:
             result["error"] = (

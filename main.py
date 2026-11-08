@@ -261,8 +261,7 @@ if page == "💬 Conversations":
                 source_lines = []
                 for source in ai_result["sources"]:
                     source_lines.append(
-                        f"- {source['file_name']} "
-                        f"(Chunk {source['sequence_number']})"
+                        f"- {source['file_name']}"
                     )
 
                 response = (
