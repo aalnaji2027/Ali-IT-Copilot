@@ -132,7 +132,7 @@ def calculate_relevance_score(
     query_terms,
     result,
 ):
-    """Calculate a deterministic relevance score."""
+    """Calculate deterministic relevance details for one chunk."""
 
     normalized_query = normalize_query_text(
         query
@@ -149,16 +149,20 @@ def calculate_relevance_score(
     score = 0
     matched_terms = []
 
-    if (
+    exact_query_match = bool(
         normalized_query
         and normalized_query in normalized_content
-    ):
-        score += 100
+    )
 
-    if (
+    file_name_query_match = bool(
         normalized_query
         and normalized_query in normalized_file_name
-    ):
+    )
+
+    if exact_query_match:
+        score += 100
+
+    if file_name_query_match:
         score += 80
 
     for term in query_terms:
@@ -192,9 +196,17 @@ def calculate_relevance_score(
     ):
         score += 30
 
+    file_name_match = any(
+        term in normalized_file_name
+        for term in query_terms
+    )
+
     return {
         "score": score,
         "matched_terms": matched_terms,
+        "exact_query_match": exact_query_match,
+        "file_name_query_match": file_name_query_match,
+        "file_name_match": file_name_match,
     }
 
 
@@ -214,6 +226,7 @@ def collect_candidate_chunks(
         search_queries.append(clean_query)
 
     for term in query_terms:
+
         if term not in search_queries:
             search_queries.append(term)
 
@@ -225,6 +238,7 @@ def collect_candidate_chunks(
         )
 
         for result in results:
+
             chunk_id = result["chunk_id"]
 
             if chunk_id not in candidates:
@@ -244,9 +258,10 @@ def rank_knowledge_results(
     ),
 ):
     """
-    Retrieve and rank knowledge chunks.
+    Retrieve, rank, deduplicate, and limit knowledge chunks.
 
-    Results include score, matched terms, and retrieval rank.
+    Results include relevance score, matched terms,
+    and retrieval rank.
     """
 
     clean_query = query.strip()
@@ -256,7 +271,10 @@ def rank_knowledge_results(
 
     safe_result_limit = max(
         1,
-        min(int(maximum_results), 20),
+        min(
+            int(maximum_results),
+            20,
+        ),
     )
 
     safe_context_limit = max(
@@ -270,6 +288,9 @@ def rank_knowledge_results(
     query_terms = extract_query_terms(
         clean_query
     )
+
+    if not query_terms:
+        return []
 
     candidates = collect_candidate_chunks(
         query=clean_query,
@@ -286,13 +307,39 @@ def rank_knowledge_results(
             result=result,
         )
 
+        matched_term_count = len(
+            score_details["matched_terms"]
+        )
+
+        minimum_required_terms = (
+            1
+            if len(query_terms) <= 1
+            else 2
+        )
+
+        weak_match = (
+            matched_term_count
+            < minimum_required_terms
+            and not score_details[
+                "exact_query_match"
+            ]
+            and not score_details[
+                "file_name_match"
+            ]
+        )
+
+        if weak_match:
+            continue
+
         if (
             score_details["score"]
             < minimum_score
         ):
             continue
 
-        ranked_result = dict(result)
+        ranked_result = dict(
+            result
+        )
 
         ranked_result["relevance_score"] = (
             score_details["score"]
@@ -300,6 +347,14 @@ def rank_knowledge_results(
 
         ranked_result["matched_terms"] = (
             score_details["matched_terms"]
+        )
+
+        ranked_result["exact_query_match"] = (
+            score_details["exact_query_match"]
+        )
+
+        ranked_result["file_name_match"] = (
+            score_details["file_name_match"]
         )
 
         scored_results.append(
@@ -324,7 +379,7 @@ def rank_knowledge_results(
         )
 
         would_exceed_limit = (
-            selected_results
+            bool(selected_results)
             and (
                 selected_characters
                 + result_characters
@@ -389,6 +444,9 @@ def get_retrieval_diagnostics(
                 ],
                 "matched_terms": result[
                     "matched_terms"
+                ],
+                "retrieval_rank": result[
+                    "retrieval_rank"
                 ],
             }
             for result in results
