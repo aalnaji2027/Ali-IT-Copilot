@@ -6,6 +6,11 @@ from src.memory.conversation import (
     save_conversation,
     get_conversations,
     clear_conversations,
+    create_conversation_session,
+    get_conversation_sessions,
+    get_conversation_session,
+    rename_conversation_session,
+    delete_conversation_session,
 )
 from src.memory.projects import save_project, get_projects
 from src.memory.knowledge import (
@@ -218,69 +223,311 @@ if page == "💬 Conversations":
         "Projects • Knowledge Assistance"
     )
 
-    history = get_conversations()
+    sessions = get_conversation_sessions()
+
+    if not sessions:
+        first_session_id = create_conversation_session(
+            "New Conversation"
+        )
+        sessions = get_conversation_sessions()
+        st.session_state["active_conversation_session_id"] = (
+            first_session_id
+        )
+
+    valid_session_ids = [
+        session["id"]
+        for session in sessions
+    ]
+
+    active_session_id = st.session_state.get(
+        "active_conversation_session_id"
+    )
+
+    if active_session_id not in valid_session_ids:
+        active_session_id = sessions[0]["id"]
+        st.session_state["active_conversation_session_id"] = (
+            active_session_id
+        )
+
+    session_by_id = {
+        session["id"]: session
+        for session in sessions
+    }
+
+    session_control_col, new_session_col = st.columns(
+        [4, 1]
+    )
+
+    with session_control_col:
+        selected_session_id = st.selectbox(
+            "Conversation",
+            options=valid_session_ids,
+            index=valid_session_ids.index(
+                active_session_id
+            ),
+            format_func=lambda session_id: (
+                session_by_id[session_id]["title"]
+                + " • "
+                + str(
+                    session_by_id[session_id][
+                        "message_count"
+                    ]
+                )
+                + " message(s)"
+            ),
+            key="conversation_session_selector",
+        )
+
+    if selected_session_id != active_session_id:
+        st.session_state[
+            "active_conversation_session_id"
+        ] = selected_session_id
+        active_session_id = selected_session_id
+        st.rerun()
+
+    with new_session_col:
+        st.write("")
+        st.write("")
+
+        if st.button(
+            "➕ New",
+            key="new_conversation_session",
+            use_container_width=True,
+        ):
+            new_session_id = create_conversation_session(
+                "New Conversation"
+            )
+            st.session_state[
+                "active_conversation_session_id"
+            ] = new_session_id
+            logger.info(
+                f"Conversation session created: "
+                f"{new_session_id}"
+            )
+            st.rerun()
+
+    active_session = get_conversation_session(
+        active_session_id
+    )
+
+    if active_session is None:
+        st.error(
+            "The selected conversation session "
+            "could not be found."
+        )
+        st.stop()
+
+    with st.expander(
+        "Manage current conversation",
+        expanded=False,
+    ):
+        rename_col, rename_button_col = st.columns(
+            [4, 1]
+        )
+
+        with rename_col:
+            session_title = st.text_input(
+                "Conversation title",
+                value=active_session["title"],
+                key=(
+                    "conversation_title_"
+                    f"{active_session_id}"
+                ),
+            )
+
+        with rename_button_col:
+            st.write("")
+            st.write("")
+
+            if st.button(
+                "Rename",
+                key=(
+                    "rename_conversation_"
+                    f"{active_session_id}"
+                ),
+                use_container_width=True,
+            ):
+                if rename_conversation_session(
+                    active_session_id,
+                    session_title,
+                ):
+                    logger.info(
+                        "Conversation session renamed: "
+                        f"{active_session_id}"
+                    )
+                    st.success(
+                        "Conversation renamed."
+                    )
+                    st.rerun()
+                else:
+                    st.warning(
+                        "Enter a valid conversation title."
+                    )
+
+        clear_col, delete_col = st.columns(2)
+
+        with clear_col:
+            if st.button(
+                "🗑 Clear Messages",
+                key=(
+                    "clear_conversation_messages_"
+                    f"{active_session_id}"
+                ),
+                use_container_width=True,
+            ):
+                clear_conversations(
+                    session_id=active_session_id
+                )
+                logger.info(
+                    "Conversation messages cleared: "
+                    f"{active_session_id}"
+                )
+                st.rerun()
+
+        with delete_col:
+            delete_confirmed = st.checkbox(
+                "Confirm deletion",
+                key=(
+                    "confirm_delete_conversation_"
+                    f"{active_session_id}"
+                ),
+            )
+
+            if st.button(
+                "Delete Conversation",
+                key=(
+                    "delete_conversation_"
+                    f"{active_session_id}"
+                ),
+                disabled=not delete_confirmed,
+                use_container_width=True,
+            ):
+                delete_conversation_session(
+                    active_session_id
+                )
+
+                remaining_sessions = (
+                    get_conversation_sessions()
+                )
+
+                if remaining_sessions:
+                    next_session_id = (
+                        remaining_sessions[0]["id"]
+                    )
+                else:
+                    next_session_id = (
+                        create_conversation_session(
+                            "New Conversation"
+                        )
+                    )
+
+                st.session_state[
+                    "active_conversation_session_id"
+                ] = next_session_id
+
+                logger.info(
+                    "Conversation session deleted: "
+                    f"{active_session_id}"
+                )
+                st.rerun()
+
+    history = get_conversations(
+        limit=100,
+        session_id=active_session_id,
+    )
     notes = get_notes()
     projects = get_projects()
 
-    conversation_col, note_col, project_col = st.columns(3)
+    conversation_col, note_col, project_col = st.columns(
+        3
+    )
 
     with conversation_col:
-        st.metric("💬 Conversations", len(history))
+        st.metric(
+            "💬 Sessions",
+            len(sessions),
+        )
+
     with note_col:
-        st.metric("📝 Notes", len(notes))
+        st.metric(
+            "📝 Notes",
+            len(notes),
+        )
+
     with project_col:
-        st.metric("📁 Projects", len(projects))
+        st.metric(
+            "📁 Projects",
+            len(projects),
+        )
 
-    if st.button("🗑 Clear History", key="clear_conversation_history"):
-        clear_conversations()
-        logger.info("Conversation history cleared")
-        st.rerun()
-
-    st.subheader("Conversation History")
+    st.subheader(active_session["title"])
 
     if not history:
-        st.info("No conversations have been saved yet.")
+        st.info(
+            "This conversation is empty. "
+            "Send a message to begin."
+        )
 
-    for item in history:
+    for item in reversed(history):
         with st.chat_message("user"):
             st.write(item[1])
+
         with st.chat_message("assistant"):
             st.write(item[2])
 
-    user_message = st.chat_input("Message Ali IT Copilot...")
+    user_message = st.chat_input(
+        "Message Ali IT Copilot..."
+    )
 
     if user_message:
-        logger.info(f"User message: {user_message}")
+        logger.info(
+            f"User message in session "
+            f"{active_session_id}: {user_message}"
+        )
 
-        with st.spinner("Searching knowledge and generating a local response..."):
+        with st.spinner(
+            "Searching knowledge and generating "
+            "a local response..."
+        ):
             personal_workspace_sources = (
-                detect_personal_workspace_sources(user_message)
+                detect_personal_workspace_sources(
+                    user_message
+                )
             )
 
             if personal_workspace_sources:
                 knowledge_results = []
             else:
-                knowledge_results = rank_knowledge_results(
-                    query=user_message,
-                    maximum_results=5,
-                    minimum_score=10,
-                    context_character_limit=12000,
+                knowledge_results = (
+                    rank_knowledge_results(
+                        query=user_message,
+                        maximum_results=5,
+                        minimum_score=10,
+                        context_character_limit=12000,
+                    )
                 )
 
-            retrieval_diagnostics = get_retrieval_diagnostics(
-                user_message,
-                knowledge_results,
+            retrieval_diagnostics = (
+                get_retrieval_diagnostics(
+                    user_message,
+                    knowledge_results,
+                )
             )
 
             logger.info(
                 f"Knowledge retrieval: "
-                f"query_terms={retrieval_diagnostics['query_terms']}; "
-                f"results={retrieval_diagnostics['result_count']}; "
-                f"characters={retrieval_diagnostics['total_characters']}; "
-                f"sources={retrieval_diagnostics['sources']}"
+                f"query_terms="
+                f"{retrieval_diagnostics['query_terms']}; "
+                f"results="
+                f"{retrieval_diagnostics['result_count']}; "
+                f"characters="
+                f"{retrieval_diagnostics['total_characters']}; "
+                f"sources="
+                f"{retrieval_diagnostics['sources']}"
             )
 
             conversation_history = []
+
             for history_item in reversed(history[:6]):
                 conversation_history.append(
                     {
@@ -292,7 +539,9 @@ if page == "💬 Conversations":
             ai_result = generate_local_response(
                 user_message=user_message,
                 knowledge_results=knowledge_results,
-                conversation_history=conversation_history,
+                conversation_history=(
+                    conversation_history
+                ),
                 notes=notes,
                 projects=projects,
             )
@@ -303,14 +552,18 @@ if page == "💬 Conversations":
             if personal_workspace_sources:
                 personal_source_lines = [
                     f"- {source_name}"
-                    for source_name in personal_workspace_sources
+                    for source_name
+                    in personal_workspace_sources
                 ]
 
                 response = (
                     f"{response}\n\n"
                     f"**Personal workspace sources:**\n"
-                    + "\n".join(personal_source_lines)
+                    + "\n".join(
+                        personal_source_lines
+                    )
                 )
+
             elif ai_result["sources"]:
                 source_lines = []
 
@@ -324,18 +577,49 @@ if page == "💬 Conversations":
                     f"**Knowledge sources:**\n"
                     + "\n".join(source_lines)
                 )
-            else:
-                response = response
 
-            save_conversation(user_message, response)
+            save_conversation(
+                user_message,
+                response,
+                session_id=active_session_id,
+            )
+
+            if (
+                active_session["title"]
+                == "New Conversation"
+            ):
+                generated_title = (
+                    user_message.strip()
+                    .replace("\n", " ")[:50]
+                    .strip()
+                )
+
+                if len(user_message.strip()) > 50:
+                    generated_title += "..."
+
+                rename_conversation_session(
+                    active_session_id,
+                    generated_title
+                    or "New Conversation",
+                )
+
             logger.info(
-                f"Local AI response generated with "
-                f"{len(ai_result['sources'])} source(s)"
+                f"Local AI response generated in "
+                f"session {active_session_id} with "
+                f"{len(ai_result['sources'])} "
+                f"source(s)"
             )
             st.rerun()
+
         else:
-            logger.error(f"Local AI response failed: {ai_result['error']}")
-            st.error("The local AI could not generate a response.")
+            logger.error(
+                f"Local AI response failed: "
+                f"{ai_result['error']}"
+            )
+            st.error(
+                "The local AI could not generate "
+                "a response."
+            )
             st.caption(ai_result["error"])
 
 
