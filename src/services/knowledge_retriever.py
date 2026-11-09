@@ -311,15 +311,29 @@ def rank_knowledge_results(
             score_details["matched_terms"]
         )
 
+        query_term_count = len(query_terms)
+
+        query_term_coverage = (
+            matched_term_count / query_term_count
+            if query_term_count
+            else 0.0
+        )
+
         minimum_required_terms = (
             1
-            if len(query_terms) <= 1
-            else 2
+            if query_term_count <= 2
+            else max(
+                2,
+                (query_term_count + 1) // 2,
+            )
         )
 
         weak_match = (
-            matched_term_count
-            < minimum_required_terms
+            (
+                matched_term_count
+                < minimum_required_terms
+                or query_term_coverage < 0.5
+            )
             and not score_details[
                 "exact_query_match"
             ]
@@ -357,6 +371,10 @@ def rank_knowledge_results(
             score_details["file_name_match"]
         )
 
+        ranked_result["query_term_coverage"] = (
+            query_term_coverage
+        )
+
         scored_results.append(
             ranked_result
         )
@@ -371,8 +389,19 @@ def rank_knowledge_results(
 
     selected_results = []
     selected_characters = 0
+    selected_document_counts = {}
 
     for result in scored_results:
+        document_id = result["document_id"]
+
+        if (
+            selected_document_counts.get(
+                document_id,
+                0,
+            )
+            >= 3
+        ):
+            continue
 
         result_characters = len(
             result["content"]
@@ -396,6 +425,14 @@ def rank_knowledge_results(
 
         selected_characters += (
             result_characters
+        )
+
+        selected_document_counts[document_id] = (
+            selected_document_counts.get(
+                document_id,
+                0,
+            )
+            + 1
         )
 
         if (
@@ -444,6 +481,9 @@ def get_retrieval_diagnostics(
                 ],
                 "matched_terms": result[
                     "matched_terms"
+                ],
+                "query_term_coverage": result[
+                    "query_term_coverage"
                 ],
                 "retrieval_rank": result[
                     "retrieval_rank"

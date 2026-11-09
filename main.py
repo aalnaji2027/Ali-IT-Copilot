@@ -566,10 +566,22 @@ if page == "💬 Conversations":
 
             elif ai_result["sources"]:
                 source_lines = []
+                displayed_source_names = set()
 
                 for source in ai_result["sources"]:
+                    source_name = source["file_name"]
+
+                    if (
+                        source_name
+                        in displayed_source_names
+                    ):
+                        continue
+
+                    displayed_source_names.add(
+                        source_name
+                    )
                     source_lines.append(
-                        f"- {source['file_name']}"
+                        f"- {source_name}"
                     )
 
                 response = (

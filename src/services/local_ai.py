@@ -256,17 +256,22 @@ def build_personal_context(
 def build_language_instruction(
     user_message,
 ):
-    """Build an explicit instruction for the user's language."""
-
+    """Enforce the language of the latest user question."""
     if contains_arabic(user_message):
         return (
-            "The latest user question is written in Arabic. "
-            "Answer entirely in Arabic. Do not answer in English."
+            "STRICT LANGUAGE RULE: Answer entirely in Arabic. "
+            "Do not answer in English. Select the response "
+            "language only from the latest user question. "
+            "Ignore the language of earlier messages, Notes, "
+            "Projects, and Knowledge documents."
         )
 
     return (
-        "Answer in the same language used in the latest "
-        "user question."
+        "STRICT LANGUAGE RULE: Answer entirely in English. "
+        "Do not answer in Arabic. Select the response "
+        "language only from the latest user question. "
+        "Ignore the language of earlier messages, Notes, "
+        "Projects, and Knowledge documents."
     )
 
 
