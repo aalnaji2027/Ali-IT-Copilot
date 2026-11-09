@@ -1,0 +1,16 @@
+=== KNOWLEDGE DOCUMENTS ===
+Documents found: 1
+
+Document ID: 1
+File Name: PMI Certification.pdf
+Chunk Count: 1
+Actual Chunks Returned: 1
+--------------------------------------------------
+
+=== DATABASE TABLE COUNTS ===
+knowledge: 1
+knowledge_chunks: 1
+
+=== SEARCH TEST ===
+Search Results: 1
+PMI Certification.pdf | Chunk 1

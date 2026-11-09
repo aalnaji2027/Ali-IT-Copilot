@@ -495,17 +495,14 @@ if page == "💬 Conversations":
                 )
             )
 
-            if personal_workspace_sources:
-                knowledge_results = []
-            else:
-                knowledge_results = (
-                    rank_knowledge_results(
-                        query=user_message,
-                        maximum_results=5,
-                        minimum_score=10,
-                        context_character_limit=12000,
-                    )
+            knowledge_results = (
+                rank_knowledge_results(
+                    query=user_message,
+                    maximum_results=5,
+                    minimum_score=1,
+                    context_character_limit=12000,
                 )
+            )
 
             retrieval_diagnostics = (
                 get_retrieval_diagnostics(

@@ -9,6 +9,17 @@ DEFAULT_RESULT_LIMIT = 5
 DEFAULT_CONTEXT_CHARACTER_LIMIT = 12000
 
 
+
+CANONICAL_QUERY_TERMS = {
+    "certifications": "certification",
+    "certificate": "certification",
+    "certificates": "certification",
+    "credentials": "certification",
+    "credential": "certification",
+    "pmp": "certification",
+    "pmi": "certification",
+}
+
 ENGLISH_STOP_WORDS = {
     "about",
     "after",
@@ -121,6 +132,11 @@ def extract_query_terms(query):
         if term in ARABIC_STOP_WORDS:
             continue
 
+        term = CANONICAL_QUERY_TERMS.get(
+            term,
+            term,
+        )
+
         if term not in terms:
             terms.append(term)
 
@@ -148,6 +164,15 @@ def calculate_relevance_score(
 
     score = 0
     matched_terms = []
+
+    expanded_query_terms = list(query_terms)
+
+    for term in expanded_query_terms:
+        for keyword, expansions in QUERY_EXPANSIONS.items():
+            if term == keyword:
+                for expansion in expansions:
+                    if expansion not in expanded_query_terms:
+                        expanded_query_terms.append(expansion)
 
     exact_query_match = bool(
         normalized_query
@@ -192,7 +217,7 @@ def calculate_relevance_score(
 
     if (
         query_terms
-        and len(matched_terms) == len(query_terms)
+        and len(matched_terms) >= min(len(query_terms), 1)
     ):
         score += 30
 
@@ -208,6 +233,40 @@ def calculate_relevance_score(
         "file_name_query_match": file_name_query_match,
         "file_name_match": file_name_match,
     }
+
+
+
+
+QUERY_EXPANSIONS = {
+    "certification": [
+        "certifications",
+        "certificate",
+        "credentials",
+        "credential",
+        "pmp",
+        "pmi",
+        "project management professional",
+    ],
+    "certifications": [
+        "certification",
+        "certificate",
+        "credentials",
+        "credential",
+        "pmp",
+        "pmi",
+        "project management professional",
+    ],
+    "pmp": [
+        "pmi",
+        "project management professional",
+        "certification",
+    ],
+    "bank": [
+        "housing bank",
+        "atm",
+        "account",
+    ],
+}
 
 
 def collect_candidate_chunks(
@@ -230,7 +289,20 @@ def collect_candidate_chunks(
         if term not in search_queries:
             search_queries.append(term)
 
-    for search_query in search_queries:
+    
+    expanded_queries = list(search_queries)
+
+    for query in list(search_queries):
+        query_lower = query.lower()
+
+        for keyword, expansions in QUERY_EXPANSIONS.items():
+            if keyword in query_lower:
+                for expansion in expansions:
+                    if expansion not in expanded_queries:
+                        expanded_queries.append(expansion)
+
+    for search_query in expanded_queries:
+
 
         results = search_knowledge_chunks(
             search_query,
@@ -252,7 +324,7 @@ def collect_candidate_chunks(
 def rank_knowledge_results(
     query,
     maximum_results=DEFAULT_RESULT_LIMIT,
-    minimum_score=10,
+    minimum_score=1,
     context_character_limit=(
         DEFAULT_CONTEXT_CHARACTER_LIMIT
     ),
@@ -332,7 +404,7 @@ def rank_knowledge_results(
             (
                 matched_term_count
                 < minimum_required_terms
-                or query_term_coverage < 0.5
+                and query_term_coverage < 0.5
             )
             and not score_details[
                 "exact_query_match"
