@@ -1,38 +1,32 @@
-.venv/
+# Secrets
 .env
-__pycache__/
-*.pyc
-*.db
-logs/.env
-.venv/
-__pycache__/
-._*
-
-# macOS metadata
-._*
-.DS_Store
-
-# Python cache
-__pycache__/
-*.py[cod]
+.env.*
 
 # Virtual environments
 .venv/
 .venv-*/
 venv/
 
-# Secrets
-.env
-.env.*
+# Python cache
+__pycache__/
+*.py[cod]
+
+# macOS metadata
+._*
+.DS_Store
 
 # Runtime data and logs
 logs/
 *.log
-data/database/*.db
+*.db
 data/database/*.sqlite
 data/database/*.sqlite3
 
 # Private knowledge documents
 knowledge/*
 !knowledge/.gitkeep
+
+# Local backups and diagnostics
 backup/
+diagnostic/
+phase3_*.txt
