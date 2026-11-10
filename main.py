@@ -83,6 +83,28 @@ def detect_personal_workspace_sources(user_message):
 
     return sources
 
+def detect_repository_question(user_message):
+    """Detect knowledge repository inventory questions."""
+    message = str(user_message or "").lower()
+
+    repository_terms = (
+        "what documents do you know",
+        "list knowledge documents",
+        "list documents",
+        "knowledge repository",
+        "knowledge files",
+        "what files are in",
+        "how many knowledge documents",
+        "how many documents",
+        "documents are stored",
+        "what information is stored",
+        "what is stored in my knowledge repository",
+    )
+
+    return any(
+        term in message
+        for term in repository_terms
+    )
 
 # =========================
 # Streamlit Configuration
@@ -484,6 +506,38 @@ if page == "💬 Conversations":
             f"User message in session "
             f"{active_session_id}: {user_message}"
         )
+
+        if detect_repository_question(user_message):
+
+            documents = get_documents()
+
+            if documents:
+
+                document_names = "\n".join(
+                    f"- {document[1]}"
+                    for document in documents
+                )
+
+                response = (
+                    f"Knowledge repository contains "
+                    f"{len(documents)} document(s):\n\n"
+                    f"{document_names}"
+                )
+
+            else:
+
+                response = (
+                    "No documents are currently stored "
+                    "in the knowledge repository."
+                )
+
+            save_conversation(
+                user_message,
+                response,
+                session_id=active_session_id,
+            )
+
+            st.rerun()
 
         with st.spinner(
             "Searching knowledge and generating "
